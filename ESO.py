@@ -3,224 +3,188 @@ import time
 
 class ESO:
    # Electric Storm Optimization
-    def __init__(self, function, constraints, n_rays=50, iterations=10000, objective ='min',  bounds=None, verbose=True):
-         # Inicialización con parámetros
-        self.cache = {} 
-        self.function = function # Objective function
-        self.constraints = constraints # Problem constraints
-        if n_rays < 5:
-            print("Warning: The number of rays can not be less than 5")
-            n_rays = 5
-        self.n_rays = n_rays # Number of rays to be deployed
-        self.initial_rays = n_rays 
-        self.ke = 2
-        self.explored_solutions = set()  # Set to store explored solutions
-        self.iterations = iterations # Number of optimization iterations
-        self.iteration_current = 0 # Current iteration
-        self.objective = objective # Objective function type
-        self.bounds = bounds or [(0, 1) for _ in range(2)] # Search space bounds
-        self.dim = len(self.bounds) # Problem dimensionality
-        self.verbose = verbose # Whether to print progress information
-        self.stagnation = np.zeros(n_rays, dtype=int) # Stagnation counter for each ray
-        self.promising_areas = [] # List to storage promising areas
-        self.rays = np.array([self.initialize_ray() for _ in range(n_rays)]) # Initialize rays
-        self.objective_values = [] # List to storage objective values
-        self.iteration_times = []  # List to storage iteration times
-        self.best_positions = [] # List to storage best positions
-        self.ray_history = [[] for _ in range(n_rays)] # List to storage ray history
+    def __init__(self, function, pop_size=50, max_iter=1000, max_eval = 500000 ,objective ='min', bounds=None, verbose=True):
+            # Inicialización con parámetros
+            self.cache = {} # Cache to storage the evaluation to the function
+            self.ionized_areas_indices = [] # List to storage ionized areas indices
+            self.ionized_areas_positions = [] # List to storage ionized areas positions
+            self.storm_power = 0 # Storm's power initial state
+            self.bounds = bounds or [(0, 1) for _ in range(2)] # Search space bounds
+            self.dim = len(self.bounds) # Problem dimensionality
+            self.function = function # Objective function
+            self.function_evaluations = 0 # Number of evaluations to the objective function
+            self.function_evaluations_list = []
+            self.lightning = np.array([self.initialize_lightning() for _ in range(pop_size)]) # Initialize lightning
+            self.n_lightning = pop_size # Number of lightning to be deployed
+            self.objective = objective # Objective function 
+            self.iterations = max_iter # Number of optimization iterations
+            self.iteration_current = 0 # Current iteration
+            self.field_resistance = 0 # Field's resistance initial state
+            self.field_intensity = 0 # Field's intensity initial state
+            self.verbose = verbose # Whether to print progress information
+            self.stagnation = np.zeros(pop_size, dtype=int) # Stagnation counter for each lightning
+            self.objective_values = [] # List to storage objective values
+            self.iteration_times = []  # List to storage iteration times
+            self.best_positions = [] # List to storage best positions
+            self.lightning_history = [[] for _ in range(pop_size)] # List to storage lightning history    
+            self.max_evaluations = max_eval  # Maximum number of evaluations       
+              
+    def identify_ionized_areas(self):
+        # Identify high-energy areas based on their performance
+        self.ionized_areas_indices = sorted(range(self.n_lightning), key=lambda i: self.lightning[i]['best_score'], reverse=(self.objective == 'max'))[:int(self.n_lightning * 0.2)]
+        self.ionized_areas_positions = [self.lightning[i]['position'] for i in self.ionized_areas_indices]
         
-                   
-    def initialize_ray(self): 
-        " Initialize the rays on the promising areas if any, otherwise ramdomly within the bounds"
-       
-        position = None 
-        if self.promising_areas:
-            # If there are promising areas, choose one and perturb its position slightly
-            selected_area = np.random.choice(self.promising_areas)
-            position = selected_area['position'] 
+    def initialize_lightning(self):                
+        if self.ionized_areas_positions:
+            # Elegir un índice al azar de ionized_areas_positions
+            idx = np.random.randint(len(self.ionized_areas_positions))
+            selected_area = self.ionized_areas_positions[idx]
+            position = selected_area + (self.storm_power * 0.1) 
+            position = np.clip(position, *np.array(self.bounds).T)
+            
         else:
-            # Otherwise, initialize a ray randomly within the bounds
             bounds_low, bounds_high = np.array(self.bounds).T
-            position = np.random.uniform(bounds_low, bounds_high)
-
-        if self.is_path_valid(position):
-            if tuple(position) in self.cache:
-                best_score = self.cache[tuple(position)]
-            else:
-                best_score = self.function(position)
-                self.cache[tuple(position)] = best_score
+            position = np.random.uniform(bounds_low, bounds_high, size=self.dim)
+            position = np.clip(position, *np.array(self.bounds).T)
+        
+        if tuple(position) in self.cache:
+            best_score = self.cache[tuple(position)]
         else:
-            best_score = float('inf')
+            best_score = self.function(position)
+            self.cache[tuple(position)] = best_score
+            self.function_evaluations += 1
+            self.function_evaluations_list.append(self.function_evaluations)
+        
         return {'position': position, 'best_position': np.copy(position), 'best_score': best_score}
-    
-    def is_path_valid(self, solution):
-        " Check whether the solution is valid or not "
-        
-        return all(constraint(solution) <= 0 if callable(constraint) else True for constraint in self.constraints)
-    
-    def adjust_path(self, solution):
-        " Adjust the solution to ensure that it is valid "
-       
-        adjusted_solution = solution.copy()
-        for _ in range(5):
-            if not self.is_path_valid(adjusted_solution):
-                direction = np.random.randn(self.dim)
-                # step_size = np.random.uniform(0.01, 0.5)   
-                step_size = self.cros_points() 
-                adjusted_solution += step_size * direction
-                adjusted_solution = np.clip(adjusted_solution, *np.array(self.bounds).T)
-            else:
-                break
-        return adjusted_solution
-        
-    def update_ray_position(self, lightning_position, storm_centers, electric_field_intensity):
-        " Update the position of the rays near to the storm centers "
-        new_lightning_position = np.zeros_like(lightning_position)
-        for storm_center in storm_centers:
-            electric_randomness1, electric_randomness2 = np.random.random(), np.random.random()
-            electric_attraction = 2 * electric_field_intensity * electric_randomness1 - electric_field_intensity
-            electric_force = 2 * electric_randomness2
-            electric_displacement = abs(electric_force * storm_center - lightning_position)
-            new_lightning_position += storm_center - electric_attraction * electric_displacement
-
-        new_lightning_position /= len(storm_centers)  # Average of updated positions
-        return new_lightning_position
-    
-    def is_new_solution(self, solution):
-        solution_tuple = tuple(solution)  # Convert array to tuple for hashability
-        if solution_tuple in self.explored_solutions:
-            return False
+           
+    def adjust_field_intensity(self):
+        iteration_factor = self.iteration_current / max(self.iterations, 1)
+        # Primero calculamos una base de intensidad del campo basada en la iteración actual
+        if iteration_factor <= 0.5:
+            base_intensity = 3 - (iteration_factor / 0.5 * (2.9))
+        elif iteration_factor <= 0.7:
+            adjusted_factor = (iteration_factor - 0.5) / 0.2  
+            base_intensity = 0.1 - (adjusted_factor * (0.09))
         else:
-            self.explored_solutions.add(solution_tuple)
-            return True
+            adjusted_factor = (iteration_factor - 0.7) / 0.3  
+            base_intensity = 0.01 * (1 - adjusted_factor)
         
-    def field_intensity(self):
-        return np.exp2(self.ke - self.iteration_current * (self.ke / self.iterations))
+        if self.field_resistance > 0.25:
+            # Aumenta la intensidad si la variabilidad es alta para fomentar la exploración
+            self.field_intensity = base_intensity * (1 + (self.field_resistance - 0.5))
+            
+        else:
+            # Disminuye la intensidad para fomentar la explotación si la variabilidad es baja
+            self.field_intensity = 3 * base_intensity * self.field_resistance
     
-    def cros_points(self):
-        return (self.field_intensity() - np.exp2(-self.ke)) / (np.exp2(self.ke) - np.exp2(-self.ke))
+    def calculate_field_resistance(self):        
+        positions = np.array([ray['position'] for ray in self.lightning])
+        max_diff = np.ptp(positions)  # Peak-to-peak (max - min) difference across all dimensions
+        max_diff = max(max_diff, 1e-6)  # Avoid division by zero
+        self.field_resistance = np.std(positions) / max_diff    
         
-
+    def calculate_storm_power(self):
+        #  Bigger number increases explotaition but reduces the exploration capacity
+        self.storm_power = self.field_resistance * self.field_intensity ** np.exp(4 * self.field_resistance)   
+          
     def branch_and_propagate(self, idx):
-        "Propagate rays based on the interaction with others rays and the intensity of the field"
-        while True:
-            # Reinciar rayo si está estancado
-            if self.stagnation[idx] > 10:
-                return self.initialize_ray()['position']
-            intensity_decay = self.field_intensity() 
-            storm_center = [self.rays[i]['position'] for i in range(4)] # 3 best rays
-            new_position = self.update_ray_position(self.rays[idx]['position'], storm_center, intensity_decay)
-            adapted_path = np.clip(new_position, *np.array(self.bounds).T)
-            candidates = np.random.choice([i for i in range(self.n_rays) if i != idx], 4, replace=False)
-            base_ray = self.rays[candidates[0]]['position']
-            influence_ray1 = self.rays[candidates[1]]['position']
-            influence_ray2 = self.rays[candidates[2]]['position']
-            influence_ray3 = self.rays[candidates[3]]['position']
-            disturbance = intensity_decay * (influence_ray1 - influence_ray2 - influence_ray3)
-            new_path = np.clip(base_ray + disturbance, *np.array(self.bounds).T)
-            cross_point_prob =  self.cros_points() ## Aqui elimine del inicio de la ecuacion la multiplicacion por 0.9
-            cross_points = np.random.rand(self.dim) < cross_point_prob
+        # Reinitialize lightning if they have been stagnant
+        pert_range = np.exp(self.field_resistance) 
+        if self.stagnation[idx] > 2:
+            self.stagnation[idx] = 0
+            return self.initialize_lightning()['position']                                                            
 
-            if not np.any(cross_points):
-                random_index = np.random.randint(0, self.dim)
-                adapted_path[random_index] = new_path[random_index]
+        # Propagate the lightning within the high-energy centers to explore nearby high-quality solutions
 
-            if self.is_new_solution(adapted_path):
-                break
-            # Si la solución ya ha sido explorada, el bucle se repite generando una nueva
-        
-        return adapted_path
-      
-    def select_path(self, idx, adapted_path):
-        "Evaluate the objective function at the adapted path and update the rays if the objective function is better "
+        if idx in self.ionized_areas_indices:
+            new_position = (self.lightning[idx]['position'] * self.storm_power)           
+
+            # Ensure the position is within the search space boundaries
+            new_position = np.clip(new_position, *np.array(self.bounds).T)               
+
+        else:
+            # For other lightning, branch them based on the average position of the storm centers
+            new_position = np.zeros_like(self.lightning[idx]['position'])
+            for center_pos in self.ionized_areas_positions: 
+                perturbation = np.random.uniform(-pert_range, pert_range, size=self.dim)  
+                new_position += (center_pos + 10 * (perturbation * self.storm_power)) 
+            new_position /= len(self.ionized_areas_positions)  # Average updated positions           
+
+            # Ensure the position is within the search space boundaries
+            new_position = np.clip(new_position, *np.array(self.bounds).T)       
+
+        return new_position    
+                                     
+    def select_path(self, idx, adapted_path):       
         if tuple(adapted_path) in self.cache:
             adapted_score = self.cache[tuple(adapted_path)]
         else:
             adapted_score = self.function(adapted_path)
             self.cache[tuple(adapted_path)] = adapted_score
+            self.function_evaluations += 1
+            self.function_evaluations_list.append(self.function_evaluations)
         
-        if (self.objective == 'min' and adapted_score < self.rays[idx]['best_score']) or \
-            (self.objective == 'max' and adapted_score > self.rays[idx]['best_score']):
-            self.rays[idx]['position'] = adapted_path
-            self.rays[idx]['best_position'] = adapted_path
-            self.rays[idx]['best_score'] = adapted_score
+        if (self.objective == 'min' and adapted_score < self.lightning[idx]['best_score']) or \
+            (self.objective == 'max' and adapted_score > self.lightning[idx]['best_score']):
+            self.lightning[idx]['position'] = adapted_path
+            self.lightning[idx]['best_position'] = adapted_path
+            self.lightning[idx]['best_score'] = adapted_score
             self.stagnation[idx] = 0
         else:
             self.stagnation[idx] += 1
              
-    def update_optimal_strike(self, idx, global_best_position, global_best_score):
-        "Update the global best position and score of the rays if the objective function is better "
-        if (self.objective == 'min' and self.rays[idx]['best_score'] < global_best_score) or \
-        (self.objective == 'max' and self.rays[idx]['best_score'] > global_best_score):
-            global_best_position = self.rays[idx]['best_position']
-            global_best_score = self.rays[idx]['best_score']
-            self.update_best_positions_history(self.rays[idx]['best_position'], self.rays[idx]['best_score'])
+    def update_optimal_strike(self, idx, global_best_position, global_best_score):        
+        if (self.objective == 'min' and self.lightning[idx]['best_score'] < global_best_score) or \
+        (self.objective == 'max' and self.lightning[idx]['best_score'] > global_best_score):
+            global_best_position = self.lightning[idx]['best_position']
+            global_best_score = self.lightning[idx]['best_score']
+            self.update_best_positions_history(self.lightning[idx]['best_position'], self.lightning[idx]['best_score'])
         return global_best_position, global_best_score
     
-    def update_best_positions_history(self, position, score):
-        " Update the list of best positions "
+    def update_best_positions_history(self, position, score):       
         self.best_positions.append((score, position))
         self.best_positions.sort(key=lambda x: x[0], reverse=(self.objective == 'max'))
         self.best_positions = self.best_positions[:5]  # Keep only the 5 best positions
-        
-    def identify_strong_fields(self):
-        "Identify areas of the search space where the solutions are better"
-        
-        self.promising_areas = []
-        percentile_threshold = np.percentile([ray['best_score'] for ray in self.rays], 10)
-        self.promising_areas = [
-            {'position': ray['best_position'], 'score': ray['best_score']}
-            for ray in self.rays if ray['best_score'] < percentile_threshold
-        ]
-                            
-    def evaluate_field_variability(self):
-        "Measure the normalized variability of the field in the search space"
-        positions = np.array([ray['position'] for ray in self.rays])
-        max_diff = np.ptp(positions)  # Peak-to-peak (max - min) difference across all dimensions
-        max_diff = max(max_diff, 1e-6)  # Avoid division by zero
-        return np.std(positions) / max_diff
-
-    def adapt_storm_conditions(self):
-        "Dynamically adjust the number of rays and radius based on normalized field intensity"
-       
-        # Ajustar el número de rayos: Nunca debe ser menor que 5
-        self.n_rays = max(int(np.round(self.initial_rays * self.cros_points())), 5)
-        
-    def optimize(self):
-            "Optimize the search space"
+                   
+    def optimize(self):            
+            if not callable(self.function):
+                raise ValueError("Function must be callable.")
+           
+            global_best_position = self.lightning[0]['position'].copy()
+            global_best_score = self.lightning[0]['best_score']
             
-            if not callable(self.function) or not all(callable(constraint) for constraint in self.constraints):
-                raise ValueError("Function and all constraints must be callable.")
-
-            global_best_position = self.rays[0]['position'].copy()
-            global_best_score = self.rays[0]['best_score']
-
             for iteration in range(self.iterations):
+                if self.function_evaluations >= self.max_evaluations:
+                    print("Max evaluations reached, stopping optimization.")
+                    break  # Stop optimization if maximum evaluations are reached
                 self.iteration_current = iteration
                 iteration_start_time = time.time()
-                self.adapt_storm_conditions()
-
-                for idx in range(self.n_rays):
+                self.identify_ionized_areas()
+                self.adjust_field_intensity()
+                self.calculate_field_resistance()
+                self.calculate_storm_power()
+                            
+                for idx in range(self.n_lightning):
                     adapted_path = self.branch_and_propagate(idx)
-                    
-                    # Adjust the path if it is not valid
-                    self.rays[idx] = self.adjust_path(self.rays[idx])
                     self.select_path(idx, adapted_path)
                     global_best_position, global_best_score = self.update_optimal_strike(idx, global_best_position, global_best_score)
-                            
-                    # Reinitialize rays that have stagnated
-                    if self.stagnation[idx] > 10:
-                        self.rays[idx] = self.initialize_ray()
-                        self.stagnation[idx] = 0
-    
-                self.identify_strong_fields()  
-       
+                                      
                 iteration_duration = time.time() - iteration_start_time
                 self.iteration_times.append(iteration_duration)
                 self.objective_values.append(global_best_score)
                 self.best_positions.append(global_best_position)
 
                 if self.verbose:
-                    print(f"Iteration: {iteration+1}, Current best: {self.rays[0]['best_score']:.20e}, Global best: {global_best_score:.20e}, Iteration time: {iteration_duration:.5f} seconds")
+                    def format_global_best(global_best):
+                            if isinstance(global_best, np.ndarray):
+                                # Es un array, utilizamos np.array2string para convertirlo a string
+                                return np.array2string(global_best)
+                            else:
+                                # Es un número flotante, utilizamos formateo de string directamente
+                                return f"{global_best:.20e}"
 
-            return global_best_position, global_best_score
+                        # Dentro de tu código donde imprimes el resultado:
+                    print(f"Iteration: {iteration+1}, Field int: {self.field_intensity:.3f}, Field res: {self.field_resistance:.3f}, Current best: {self.lightning[0]['best_score']:.20e}, Global best: {format_global_best(global_best_score)}, Iteration time: {iteration_duration:.5f} seconds, Func. Eval: {self.function_evaluations}")
+
+                                    
+            return global_best_position, global_best_score  
