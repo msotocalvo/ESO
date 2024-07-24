@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from ESO1 import ESO
+from ESO import ESO
 import BMF
 
 # Lista de funciones y sus respectivos límites
