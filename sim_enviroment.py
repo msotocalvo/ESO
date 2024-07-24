@@ -7,7 +7,7 @@ import pandas as pd
 import seaborn as sns
 import time
 import datetime as datetime
-from ESO1 import ESO
+from ESO import ESO
 from mealpy import HS, TS,GA,DE,SA,PSO,ABC,ACOR,GWO,WOA,CSA,EFO,MFO,BFO,FFA,BA, BBO, CRO,FPA, HHO, SHADE ,FloatVar
 import FunctionUtil
 from opfunu.cec_based import cec2022, cec2021
@@ -19,7 +19,7 @@ from BMF import *
 import concurrent.futures  
 from autorank import autorank
 ###### Simulation parameters ############################################################
-num_simulations = 20 # Number of simulations
+num_simulations = 50 # Number of simulations
 pop_size = 50 # Size of the population
 max_iter = 1000 # Max number of iterations
 max_eval = 50_000 # Max number of function evaluation
