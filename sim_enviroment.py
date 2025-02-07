@@ -258,9 +258,9 @@ def run_algorithm(test, name):
     }
     
 if __name__ == '__main__':
-    # Lista de nombres de algoritmos
+    # List of algorithms
     algorithm_names = [ 'ESO', 'ABC','ACO', 'ALO', 'ASO','DE', 'GA', 'GSKA', 'MFO', 'PSO', 'QSA', 'LSHADE', 'BBO', 'FPA', 'HS', 'SA', 'TS', 'HBA', 'EVO', 'BBOA', 'FLA']   
-    # Estructuras de datos para almacenar resultados acumulados
+    # Storage results
     history = {
         'Algorithm': [],
         'Function': [],
@@ -271,7 +271,7 @@ if __name__ == '__main__':
                  
     }
 
-    # Ejecución de algoritmos en paralelo para cada función de prueba
+    # Parallel execution of the test set
     with concurrent.futures.ProcessPoolExecutor(max_workers=20) as executor:
         for _ in range(num_simulations):
             for test in test_functions:
@@ -284,7 +284,7 @@ if __name__ == '__main__':
                     accuracy = np.abs(1 /(1 + distance)) 
                     alg_name = futures[future]  # Recuperar el nombre del algoritmo
 
-                    # Guardar los resultados en las listas correspondientes
+                    # Save results
                     history['Algorithm'].append(alg_name)
                     history['Function'].append(func_name)
                     history['Best Score'].append(data['best_score'])                    
@@ -292,12 +292,12 @@ if __name__ == '__main__':
                     history['Execution Time'].append(data['execution_time'])
                     history['Best Solution'].append(str(data['best_solution']))  # Convertir soluciones a string para evitar problemas de formato                    
 
-                    # Imprimir el progreso
+                    # Print progress
                     remaining_runs = len(test_functions) * num_simulations - (len(history['Algorithm']) // len(algorithm_names))
                     progress = ( 1 - (remaining_runs / (len(test_functions) * num_simulations))) * 100
                     print(f"Completed: {alg_name} for {func_name}. Remaining: {remaining_runs}. Progress: {progress:.3f} %")
                     
-    # Crear DataFrame de pandas para los resultados y guardarlos en un archivo Excel
+    # Darataframe to export resuts
     df = pd.DataFrame(history)
     # with pd.ExcelWriter('history.xlsx', engine='openpyxl') as writer:
     current_datetime = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -305,14 +305,13 @@ if __name__ == '__main__':
     filename = f"Results/{problem_group}_{current_datetime}_history_raw.xlsx"
     df.to_excel(filename, index=False)
     
-    # Umbral para definir un éxito
+    # Success thresshold
     success_threshold = 10E-8
 
-    # Estructura para almacenar las métricas de desempeño
+    # Performance metrics
     performance_metrics = []
     bayesian_results = []
-
-    # Recorrer cada función de prueba y calcular métricas por cada algoritmo
+    
     for test in test_functions:
         func_name = test['name']
         known_optimum = test['optimal']       
@@ -344,13 +343,11 @@ if __name__ == '__main__':
                     'Accuracy': accuracy,
                     'Success Ratio': success_ratio,
                     'Average Time': avg_time,                    
-                })  
-                
-    
-     # Crear DataFrame de pandas para los resultados procesados
+                })                 
+        
     df_metrics = pd.DataFrame(performance_metrics)   
       
-    # Guardar los resultados en un archivo Excel
+    # Export results
     current_datetime = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     filename_metrics = f"Results/{problem_group}_{current_datetime}_performance_metrics.xlsx"
     df_metrics.to_excel(filename_metrics, index=False)  
@@ -362,7 +359,7 @@ if __name__ == '__main__':
         # Apply the Bayesian signed-rank test using autorank
         result_bayesian = autorank(pivot_data, alpha=0.05, verbose=False, approach='bayesian')    
     else:
-        print(f"Not enough samples to run Bayesian signed-rank test")                   
+        print(f"Not enough samples to run Bayesian signed-rank test")  
    
        
     
