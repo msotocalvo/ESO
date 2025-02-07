@@ -31,20 +31,60 @@ class ESO:
         self.field_intensity_history = []
         self.field_resistance_history = []
         self.field_elasticity_history = []   
-        self.storm_power_history = []
-        
-    @lru_cache(maxsize=None)
-    def exp(self, x):
-        if x > 10e1:
-            return np.inf
-        elif x < -10e1:
-            return 0.0
-        else:
-            return np.exp(x)
+        self.storm_power_history = []       
+    
     
     @lru_cache(maxsize=None)
+    def exp(self, x):       
+        try:           
+            x = float(x)            
+            # Special cases
+            if np.isnan(x):
+                return np.nan
+            if np.isinf(x):
+                return 0.0 if x < 0 else np.inf
+                
+            # Limit the values to avoid overflow
+            if x > 709:  # log(np.finfo(np.float64).max)
+                return np.finfo(np.float64).max
+            if x < -709:
+                return np.finfo(np.float64).min
+                
+            return np.exp(x)
+            
+        except Exception as e:
+            # In case of unexpected error, return a safe value
+            print(f"Warning: exp calculation failed with {str(e)}. Using fallback value.")
+            return np.finfo(np.float64).eps 
+
+    @lru_cache(maxsize=None)
     def log(self, x):
-        return np.log(x)      
+       
+        try:            
+            x = float(x)
+            
+            # Special cases
+            if np.isnan(x):
+                return np.nan
+            if np.isinf(x):
+                return np.inf if x > 0 else np.nan
+            if x <= 0:
+                # For negative values and zero return a very small value          
+                return np.log(np.finfo(np.float64).tiny)
+                
+            # For values very close to zero
+            if x < np.finfo(np.float64).tiny:
+                return np.log(np.finfo(np.float64).tiny)
+                
+            return np.log(x)
+            
+        except Exception as e:
+            # In case of unexpected error, return a safe value
+            print(f"Warning: log calculation failed with {str(e)}. Using fallback value.")
+            return np.log(np.finfo(np.float64).tiny)
+    
+    def logistic_curve(self, value, multiplier):
+        return 1 / (1 + self.exp(-multiplier * (value - np.abs(self.log(1 - value + 10e-50)))))
           
     def identify_ionized_areas(self):
         self.ionized_areas_index = sorted(range(self.n_lightning), key=lambda i: self.lightning[i]['best_score'], 
@@ -55,7 +95,7 @@ class ESO:
         if self.ionized_areas_positions:
             # Chooses a random index among the ionized areas
             idx = np.random.randint(len(self.ionized_areas_positions))
-            selected_area = self.ionized_areas_positions[idx]                        
+            selected_area = self.ionized_areas_positions[idx]
             position = selected_area + self.storm_power 
             position = np.clip(position, *np.array(self.bounds).T)
             
@@ -78,57 +118,64 @@ class ESO:
         positions = np.array([ray['position'] for ray in self.lightning])
         max_diff = np.ptp(positions)  
         max_diff = max(max_diff, 1e-6)  
-        self.field_resistance = (np.std(positions) / max_diff)           
+        self.field_resistance = (np.std(positions) / max_diff)         
    
-    def calculate_ke(self):          
-        
-        beta =  1 / (1 + self.exp(-(self.exp(self.field_resistance) / (self.field_resistance + 10e-50)) * 
-                                  (self.field_resistance - np.abs(self.log(1 - self.field_resistance)))))         
+    def calculate_ke(self):
+        beta = self.logistic_curve(self.field_resistance, self.exp(self.field_resistance) / (self.field_resistance + 10e-50))       
         self.ke = self.exp(self.field_resistance) + (self.exp(1 - self.field_resistance) * np.abs(self.log(self.field_resistance + 10e-50))) * beta        
-         
          
     def adjust_field_intensity(self):     
                     
         iteration_factor = self.iteration_current / max(self.iterations, 1)            
         ganma = 1 / (1 + self.exp(-(self.exp(self.field_resistance) / (self.field_resistance + 10e-50)) * 
-                                  (self.field_resistance - np.abs(self.log(1 - iteration_factor)))))      
-       
+                                  (self.field_resistance - np.abs(np.log(1 - iteration_factor)))))
         self.field_intensity = 10e-50 + self.ke * ganma       
-            
+        
     def calculate_storm_power(self):
-        self.storm_power = self.field_resistance * self.field_intensity ** self.ke     
+        self.storm_power = self.field_resistance * self.field_intensity ** self.ke   
     
     def branch_and_propagate(self, idx):
         # Reinitialize lightning if they have been stagnant              
-        if self.stagnation[idx] > round(self.ke):
+        if self.stagnation[idx] > 2:
             self.stagnation[idx] = 0
             return self.initialize_lightning()['position']                                                            
 
-        # Propagate the lightning within the high-energy centers to explore nearby high-quality solutions
+        # Propagate the lightning within the high-energy centers
         if idx in self.ionized_areas_index:
-            new_position = self.lightning[idx]['position'] * self.storm_power           
-
+            new_position = (self.lightning[idx]['position'] * self.storm_power)           
             # Ensure the position is within the search space boundaries
             new_position = np.clip(new_position, *np.array(self.bounds).T)               
-
         else:
             # For other lightning, branch them based on the average position of the storm centers
-            if len(self.ionized_areas_positions) > 0:
-                new_position = np.zeros_like(self.lightning[idx]['position'])
-                for center_pos in self.ionized_areas_positions: 
-                    perturbation = np.random.uniform(-self.ke, self.ke, size=self.dim)  
-                    new_position += (center_pos + (perturbation * self.storm_power * self.exp(self.ke)))                 
-                            
-                new_position /= len(self.ionized_areas_positions)  # Average updated positions  
+            if not self.ionized_areas_positions:  # Si no hay áreas ionizadas
+                # Generar una nueva posición aleatoria dentro de los límites
+                bounds_low, bounds_high = np.array(self.bounds).T
+                new_position = np.random.uniform(bounds_low, bounds_high, size=self.dim)
             else:
-                # If there are no ionized areas, initialize a new lightning position
-                new_position = self.initialize_lightning()['position']
+                accumulated_position = np.zeros_like(self.lightning[idx]['position'])
+                num_valid_updates = 0
+                
+                for center_pos in self.ionized_areas_positions:
+                    perturbation = np.random.uniform(-self.ke, self.ke, size=self.dim)
+                    update = (center_pos + (perturbation * self.storm_power * np.exp(self.ke)))
+                    
+                    # Verify update
+                    if np.all(np.isfinite(update)):
+                        accumulated_position += update
+                        num_valid_updates += 1
+                
+                # Calculate mean if uptade was valid
+                if num_valid_updates > 0:
+                    new_position = accumulated_position / num_valid_updates
+                else:
+                    # If update not valid generate ramdon position wihtin bounds
+                    bounds_low, bounds_high = np.array(self.bounds).T
+                    new_position = np.random.uniform(bounds_low, bounds_high, size=self.dim)
 
             # Ensure the position is within the search space boundaries
-            new_position = np.clip(new_position, *np.array(self.bounds).T)       
+            new_position = np.clip(new_position, *np.array(self.bounds).T)
 
         return new_position
-      
                                      
     def select_path(self, idx, adapted_path):       
         if tuple(adapted_path) in self.cache:
@@ -168,8 +215,7 @@ class ESO:
         for iteration in range(self.iterations):
             if self.function_evaluations >= self.max_evaluations:
                 print("Max evaluations reached, stopping optimization.")
-                break          
-
+                break 
             self.iteration_current = iteration
             iteration_start_time = time.time()
             self.identify_ionized_areas()
