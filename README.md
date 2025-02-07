@@ -1,4 +1,4 @@
-# Electric Storm Optimization (ESO)
+# Electrical Storm Optimization (ESO)
 
 A novel metaheuristic optimization algorithm inspired by electrical storm dynamics in nature. ESO combines swarm intelligence with adaptive field mechanics to efficiently explore complex, multi-dimensional search spaces.
 
