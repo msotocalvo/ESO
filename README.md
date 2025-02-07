@@ -1,31 +1,95 @@
-# ESO
-Electric Storm Optimization (ESO) is an innovative optimization algorithm inspired by the dynamics of natural electric storms. This algorithm combines elements of swarm intelligence and adaptive strategies, making it highly effective in navigating complex, multi-dimensional search spaces with constraints. The core concept involves 'lightnings'—representative of potential solutions—propagating through the search space, guided by an adaptive 'electric field.' This field dynamically adjusts its intensity, ensuring a balanced exploration and exploitation approach.
+# Electric Storm Optimization (ESO)
 
-ESO's adaptability is a standout feature, allowing it to adjust parameters in response to the evolving search landscape. It effectively avoids stagnation, continuously progressing towards optimal solutions by tracking global and local bests and employing crossover points for solution enhancement. Overall, Electric Storm Optimization offers a robust and adaptive approach to complex optimization problems, drawing inspiration from nature to optimize efficiency.
+A novel metaheuristic optimization algorithm inspired by electrical storm dynamics in nature. ESO combines swarm intelligence with adaptive field mechanics to efficiently explore complex, multi-dimensional search spaces.
 
-# How to use it:
+## Key Features
 
-    from ESO import ESO
-    
-    # Define your objective function        
-    def objective_function(x):
-        # Your implementation here
-        return computed_value       
-    
-    # Set up the optimization problem
-    optimizer = ESO(
-        function = objective_function,
-        n_lightning = 50,  # Number of rays (solutions)
-        iterations = 10000,  # Number of iterations
-        max_eval = 500000,  # Maximum number of objective function evaluations
-        objective = 'min',  # 'min' for minimization, 'max' for maximization
-        bounds = [(lower_bound, upper_bound), ...],  # Bounds for each dimension
-        verbose = True  # Set to True for iteration details
-    )
-    
-    # Perform optimization
-    best_position, best_score = optimizer.optimize()
-    
-    # Output the result
-    print(f"Best Position: {best_position}")
-    print(f"Best Score: {best_score}")
+- **Dynamic Field Adaptation**: Automatically adjusts field intensity and resistance based on the search landscape
+- **Intelligent Branching**: Lightning propagation mechanisms that balance exploration and exploitation
+- **Ionized Areas**: Strategic use of promising regions to guide the search process
+- **Memory Optimization**: Built-in caching system to avoid redundant function evaluations
+- **Robust Error Handling**: Comprehensive management of numerical edge cases
+- **Performance Tracking**: Detailed history of metrics and optimization progress
+
+## Quick Start
+
+```python
+from eso import ESO
+
+# Define your objective function
+def sphere(x):
+    return sum(xi**2 for xi in x)
+
+# Configure optimizer
+optimizer = ESO(
+    function=sphere,          # Objective function to minimize/maximize
+    pop_size=50,             # Population size (number of lightning bolts)
+    max_iter=1000,           # Maximum iterations
+    max_eval=500000,         # Maximum function evaluations
+    objective='min',         # 'min' for minimization, 'max' for maximization
+    bounds=[(-10, 10)]*2,    # Search space bounds per dimension
+    verbose=True             # Enable progress output
+)
+
+# Run optimization
+best_position, best_score = optimizer.optimize()
+```
+
+## Advanced Usage
+
+```python
+# Example with custom settings and constraints
+optimizer = ESO(
+    function=your_function,
+    pop_size=100,            # Larger population for complex problems
+    max_iter=2000,           # Extended iteration limit
+    max_eval=1000000,        # Increased evaluation budget
+    objective='max',         # Maximization problem
+    bounds=[(0, 1)]*5,       # 5-dimensional problem with [0,1] bounds
+    verbose=True
+)
+
+# Access optimization history
+print(f"Field Intensity History: {optimizer.field_intensity_history}")
+print(f"Field Resistance History: {optimizer.field_resistance_history}")
+print(f"Storm Power History: {optimizer.storm_power_history}")
+```
+
+## Algorithm Parameters
+
+- `function`: Target objective function to optimize
+- `pop_size`: Number of lightning bolts in the population
+- `max_iter`: Maximum number of iterations
+- `max_eval`: Maximum number of function evaluations
+- `objective`: Optimization direction ('min' or 'max')
+- `bounds`: List of tuples defining the search space boundaries
+- `verbose`: Enable/disable progress output
+
+## Performance Monitoring
+
+The algorithm tracks various metrics during optimization:
+- Function evaluation history
+- Field intensity and resistance evolution
+- Storm power dynamics
+- Best solution progression
+- Iteration timing statistics
+
+## Contributing
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Citation
+If you use ESO in your research, please cite:
+
+```bibtex
+@article{eso2024,
+    title={Electrical Storm Optimization (ESO) Algorithm:Theoretical foundations, analysis, and application to engineering problems},
+    author={[Soto Calvo M.; Lee Han S.]},
+    journal={[Journal Name]},
+    doi={[DOI]},
+    year={2025}
+}
+```
+
