@@ -4,7 +4,7 @@ import os
 import pandas as pd
 import time
 import datetime as datetime
-from ESO1 import ESO
+from ESO import ESO
 from mealpy import HS, TS,GA,DE,SA,PSO,ABC,ACOR,GWO,WOA,CSA,EFO,MFO,BFO,FFA,BA, BBO, CRO,FPA, HHO, SHADE, HGS, HBA, EVO, BBOA,FLA, QSA, GSKA, ALO, ASO, FloatVar
 import FunctionUtil
 from opfunu.cec_based import cec2022, cec2021
