@@ -14,7 +14,7 @@ A novel metaheuristic optimization algorithm inspired by electrical storm dynami
 ## Quick Start
 
 ```python
-from eso import ESO
+from ESO import ESO
 
 # Define your objective function
 def sphere(x):
