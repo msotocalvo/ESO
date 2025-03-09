@@ -84,7 +84,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 If you use ESO in your research, please cite:
 
 ```bibtex
-@article{eso2024,
+@article{eso2025,
     title={Electrical Storm Optimization (ESO) Algorithm: Theoretical Foundations, Analysis, and Application to Engineering Problems},
     author={[Soto Calvo M.; Lee Han S.]},
     journal={[Mach. Learn. Knowl. Extr.]},
