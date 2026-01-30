@@ -1,5 +1,7 @@
 # Electrical Storm Optimization (ESO)
 
+[![DOI](https://zenodo.org/badge/748886848.svg)](https://doi.org/10.5281/zenodo.18424379)
+
 A novel metaheuristic optimization algorithm inspired by electrical storm dynamics in nature. ESO combines swarm intelligence with adaptive field mechanics to efficiently explore complex, multi-dimensional search spaces.
 
 ## Key Features
